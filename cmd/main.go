@@ -8,7 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/antihax/eve-marketwatch/marketwatch"
+	"github.com/contorno/eve-marketwatch/marketwatch"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 

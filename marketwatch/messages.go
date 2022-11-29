@@ -1,7 +1,7 @@
 package marketwatch
 
 import (
-	"github.com/antihax/goesi/esi"
+	"github.com/contorno/goesi/esi"
 )
 
 // Message wraps different payloads for the websocket interface

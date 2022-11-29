@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/antihax/goesi"
+	"github.com/contorno/goesi"
 )
 
 func getPages(r *http.Response) (int32, error) {

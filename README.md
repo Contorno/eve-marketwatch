@@ -11,7 +11,7 @@ The microservice will spawn one goroutine (think lightweight thread) per market 
 ## dockerized
 The docker containers are from scratch and do not have ca-certs available, provide your systems ca-certs or an alternative location.
 
-`docker run antihax/eve-marketwatch -p 3005:3005 -v /etc/ssl/certs:/etc/ssl/certs`
+`docker run contorno/eve-marketwatch -p 3005:3005 -v /etc/ssl/certs:/etc/ssl/certs`
 
 ## compilation
 

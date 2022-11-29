@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/antihax/goesi/esi"
-	"github.com/antihax/goesi/optional"
+	"github.com/contorno/goesi/esi"
+	"github.com/contorno/goesi/optional"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

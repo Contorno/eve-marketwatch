@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/antihax/goesi/esi"
+	"github.com/contorno/goesi/esi"
 )
 
 // Contract wrapper to find last touch time.

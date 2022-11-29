@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/antihax/eve-marketwatch/wsbroadcast"
+	"github.com/contorno/eve-marketwatch/wsbroadcast"
 
-	"github.com/antihax/goesi"
+	"github.com/contorno/goesi"
 	"golang.org/x/oauth2"
 )
 
