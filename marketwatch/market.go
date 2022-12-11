@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/contorno/goesi/esi"
-	"github.com/contorno/goesi/optional"
+	"github.com/contorno/optional"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

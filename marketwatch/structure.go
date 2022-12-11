@@ -11,7 +11,7 @@ import (
 
 	"github.com/contorno/goesi"
 	"github.com/contorno/goesi/esi"
-	"github.com/contorno/goesi/optional"
+	"github.com/contorno/optional"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -39,7 +39,7 @@ func (s *MarketWatch) runStructures() {
 				s.createMarketStore(structure)
 				state = s.createStructureState(structure)
 			}
-			if state.running == false && time.Now().After(state.restart) {
+			if !state.running && time.Now().After(state.restart) {
 				time.Sleep(time.Second * 1)
 				state.running = true
 				go s.structureWorker(structure)
