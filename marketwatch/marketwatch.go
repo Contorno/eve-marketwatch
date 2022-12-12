@@ -43,10 +43,10 @@ func NewMarketWatch(refresh, tokenClientID, tokenSecret string) *MarketWatch {
 				MaxIdleConns: 200,
 				DialContext: (&net.Dialer{
 					Timeout:   300 * time.Second,
-					KeepAlive: 5 * 60 * time.Second,
+					KeepAlive: 60 * time.Second,
 					DualStack: true,
 				}).DialContext,
-				IdleConnTimeout:       5 * 60 * time.Second,
+				IdleConnTimeout:       3 * 60 * time.Second,
 				TLSHandshakeTimeout:   10 * time.Second,
 				ResponseHeaderTimeout: 60 * time.Second,
 				ExpectContinueTimeout: 0,
@@ -62,7 +62,7 @@ func NewMarketWatch(refresh, tokenClientID, tokenSecret string) *MarketWatch {
 	} else {
 		doAuth = true
 	}
-	auth := goesi.NewSSOAuthenticator(httpclient, tokenClientID, tokenSecret, "", []string{})
+	auth := goesi.NewSSOAuthenticatorV2(httpclient, tokenClientID, tokenSecret, "", []string{})
 
 	tok := &oauth2.Token{
 		Expiry:       time.Now(),

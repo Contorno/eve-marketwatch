@@ -30,7 +30,7 @@ func main() {
 	go log.Fatalln(http.ListenAndServe(":3000", nil))
 
 	// Handle SIGINT and SIGTERM.
-	ch := make(chan os.Signal)
+	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 	log.Println(<-ch)
 }
