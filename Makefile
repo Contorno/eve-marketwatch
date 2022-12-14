@@ -1,4 +1,4 @@
-DEFAULT_TAGET: build
+DEFAULT_TAGET: buildDocker
 
 fmt:
 	go fmt ./...
@@ -10,9 +10,19 @@ lint: fmt
 
 vet: fmt
 	go vet ./...
-	shadow ./...
+	# shadow ./...
 .PHONY:vet
 
-build: vet
-	CGO_ENABLED=0 GOOS=darwin go build -a -o bin/eve-marketwatch ./cmd/
-.PHONY:build
+buildApp: vet
+	CGO_ENABLED=0 GOOS=linux go build -a -o bin/eve-marketwatch ./cmd/
+.PHONY:buildApp
+
+buildDocker: buildApp
+	docker build -t contorno/eve-marketwatch .
+	docker tag contorno/eve-marketwatch:latest 357769355421.dkr.ecr.us-west-2.amazonaws.com/eve-marketwatch:latest
+.PHONY:buildDocker
+
+uploadDocker: buildDocker
+	aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin 357769355421.dkr.ecr.us-west-2.amazonaws.com
+	docker push 357769355421.dkr.ecr.us-west-2.amazonaws.com/eve-marketwatch:latest
+.PHONY:uploadDocker
