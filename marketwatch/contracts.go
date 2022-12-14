@@ -37,11 +37,7 @@ func (s *MarketWatch) contractWorker(regionID int32) {
 		rchan <- contracts
 
 		// Figure out if there are more pages
-		pages, err := getPages(res)
-		if err != nil {
-			log.Println(err)
-			continue
-		}
+		pages, _ := getPages(res)
 		duration := timeUntilCacheExpires(res)
 		if duration.Minutes() < 3 {
 			fmt.Printf("%d contract too close to window: waiting %s\n", regionID, duration.String())
@@ -51,7 +47,7 @@ func (s *MarketWatch) contractWorker(regionID int32) {
 
 		// Get the other pages concurrently
 		for pages > 1 {
-			wg.Add(1) // count whats running
+			wg.Add(1) // count what's running
 			go func(page int32) {
 				defer wg.Done() // release when done
 
@@ -90,8 +86,8 @@ func (s *MarketWatch) contractWorker(regionID int32) {
 			continue
 		}
 
-		changes := []ContractChange{}
-		newContracts := []FullContract{}
+		var changes []ContractChange
+		var newContracts []FullContract
 		// Add all the contracts together
 		for o := range rchan {
 		Restart:
@@ -190,18 +186,14 @@ func (s *MarketWatch) getContractItems(contract *Contract) error {
 	}
 	rchan <- items
 
-	// Figure out if there are more pages
-	pages, err := getPages(res)
-	if err != nil {
-		log.Println(err)
-		return err
-	}
+	// Get number of pages.
+	pages, _ := getPages(res)
 
 	// Get the other pages concurrently
 	for pages > 1 {
-		wg.Add(1) // count whats running
+		wg.Add(1) // count what's running
 		go func(page int32) {
-			defer wg.Done() // release when done
+			defer wg.Done()
 
 			items, _, err := s.esi.ESI.ContractsApi.GetContractsPublicItemsContractId(
 				context.Background(),
@@ -250,20 +242,19 @@ func (s *MarketWatch) getContractBids(contract *Contract) error {
 	bids, res, err := s.esi.ESI.ContractsApi.GetContractsPublicBidsContractId(
 		context.Background(), contract.Contract.Contract.ContractId, nil,
 	)
+	if err != nil {
+		log.Println(err)
+	}
 	rchan <- bids
 
 	// Figure out if there are more pages
-	pages, err := getPages(res)
-	if err != nil {
-		log.Println(err)
-		return err
-	}
+	pages, _ := getPages(res)
 
 	// Get the other pages concurrently
 	for pages > 1 {
-		wg.Add(1) // count whats running
+		wg.Add(1) // count what's running
 		go func(page int32) {
-			defer wg.Done() // release when done
+			defer wg.Done()
 
 			bids, _, err := s.esi.ESI.ContractsApi.GetContractsPublicBidsContractId(
 				context.Background(),
@@ -303,13 +294,14 @@ func (s *MarketWatch) getContractBids(contract *Contract) error {
 
 // Metrics
 var (
-	metricContractTimePull = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "evemarketwatch",
-		Subsystem: "contract",
-		Name:      "pull",
-		Help:      "Market Pull Statistics",
-		Buckets:   prometheus.ExponentialBuckets(10, 1.6, 20),
-	},
+	metricContractTimePull = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: "evemarketwatch",
+			Subsystem: "contract",
+			Name:      "pull",
+			Help:      "Market Pull Statistics",
+			Buckets:   prometheus.ExponentialBuckets(10, 1.6, 20),
+		},
 		[]string{"locationID"},
 	)
 )

@@ -19,13 +19,14 @@ func (s *MarketWatch) dumpMarket(channels map[string]bool, send chan interface{}
 	if channels["market"] {
 		for _, r := range s.market {
 			// Build a list
-			m := []esi.GetMarketsRegionIdOrders200Ok{}
+			var m []esi.GetMarketsRegionIdOrders200Ok
 			r.Range(
 				func(k, v interface{}) bool {
 					o := v.(Order)
 					m = append(m, o.Order)
 					return true
-				})
+				},
+			)
 			// send the list out
 			if len(m) > 0 {
 				send <- Message{
@@ -40,13 +41,14 @@ func (s *MarketWatch) dumpMarket(channels map[string]bool, send chan interface{}
 	if channels["contract"] {
 		for _, r := range s.contracts {
 			// Build a list
-			m := []FullContract{}
+			var m []FullContract
 			r.Range(
 				func(k, v interface{}) bool {
 					o := v.(Contract)
 					m = append(m, o.Contract)
 					return true
-				})
+				},
+			)
 			// send the list out
 			if len(m) > 0 {
 				send <- Message{

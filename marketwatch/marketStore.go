@@ -60,29 +60,32 @@ func (s *MarketWatch) storeData(locationID int64, order Order) (OrderChange, boo
 
 func (s *MarketWatch) expireOrders(locationID int64, t time.Time) []OrderChange {
 	sMap := s.getMarketStore(locationID)
-	changes := []OrderChange{}
+	var changes []OrderChange
 
 	// Find any expired orders
 	sMap.Range(
 		func(k, v interface{}) bool {
 			o := v.(Order)
 			if t.After(o.Touched) {
-				changes = append(changes, OrderChange{
-					OrderID:      o.Order.OrderId,
-					LocationId:   o.Order.LocationId,
-					TypeID:       o.Order.TypeId,
-					Issued:       o.Order.Issued,
-					IsBuyOrder:   o.Order.IsBuyOrder,
-					Changed:      true,
-					VolumeChange: o.Order.VolumeRemain,
-					VolumeRemain: 0,
-					Price:        o.Order.Price,
-					Duration:     o.Order.Duration,
-					TimeChanged:  time.Now().UTC(), // We know this was within 5 minutes of this time
-				})
+				changes = append(
+					changes, OrderChange{
+						OrderID:      o.Order.OrderId,
+						LocationId:   o.Order.LocationId,
+						TypeID:       o.Order.TypeId,
+						Issued:       o.Order.Issued,
+						IsBuyOrder:   o.Order.IsBuyOrder,
+						Changed:      true,
+						VolumeChange: o.Order.VolumeRemain,
+						VolumeRemain: 0,
+						Price:        o.Order.Price,
+						Duration:     o.Order.Duration,
+						TimeChanged:  time.Now().UTC(), // We know this was within 5 minutes of this time
+					},
+				)
 			}
 			return true
-		})
+		},
+	)
 
 	// Delete them out of the map
 	for _, c := range changes {
@@ -104,20 +107,4 @@ func (s *MarketWatch) createMarketStore(locationID int64) {
 	s.mmutex.Lock()
 	defer s.mmutex.Unlock()
 	s.market[locationID] = &sync.Map{}
-}
-
-// getStructureState for a location
-func (s *MarketWatch) getStructureState(locationID int64) *Structure {
-	s.smutex.RLock()
-	defer s.smutex.RUnlock()
-	return s.structures[locationID]
-}
-
-// createStructureState for a location
-func (s *MarketWatch) createStructureState(locationID int64) *Structure {
-	state := &Structure{}
-	s.smutex.Lock()
-	defer s.smutex.Unlock()
-	s.structures[locationID] = state
-	return state
 }

@@ -62,7 +62,7 @@ func (s *MarketWatch) storeContract(locationID int64, c Contract) (ContractChang
 
 func (s *MarketWatch) expireContracts(locationID int64, t time.Time) []ContractChange {
 	sMap := s.getContractStore(locationID)
-	changes := []ContractChange{}
+	var changes []ContractChange
 
 	// Find any expired contracts
 	sMap.Range(
@@ -74,20 +74,23 @@ func (s *MarketWatch) expireContracts(locationID int64, t time.Time) []ContractC
 				if o.Contract.Contract.DateExpired.Before(time.Now()) {
 					expired = true
 				}
-				changes = append(changes, ContractChange{
-					ContractId:  o.Contract.Contract.ContractId,
-					LocationId:  o.Contract.Contract.StartLocationId,
-					Price:       o.Contract.Contract.Price,
-					Bids:        o.Contract.Bids,
-					Type_:       o.Contract.Contract.Type_,
-					DateExpired: o.Contract.Contract.DateExpired,
-					Changed:     true,
-					Expired:     expired,
-					TimeChanged: time.Now().UTC(), // We know this was within 30 minutes of this time
-				})
+				changes = append(
+					changes, ContractChange{
+						ContractId:  o.Contract.Contract.ContractId,
+						LocationId:  o.Contract.Contract.StartLocationId,
+						Price:       o.Contract.Contract.Price,
+						Bids:        o.Contract.Bids,
+						Type_:       o.Contract.Contract.Type_,
+						DateExpired: o.Contract.Contract.DateExpired,
+						Changed:     true,
+						Expired:     expired,
+						TimeChanged: time.Now().UTC(), // We know this was within 30 minutes of this time
+					},
+				)
 			}
 			return true
-		})
+		},
+	)
 
 	// Delete them out of the map
 	for _, c := range changes {

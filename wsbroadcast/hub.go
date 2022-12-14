@@ -40,13 +40,15 @@ type Hub struct {
 
 // NewHub Create a new hub for the handler
 func NewHub(availableChannels []string) *Hub {
-	return &Hub{
+	hub := &Hub{
 		broadcast:  make(chan fullMessage),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
 		clients:    make(map[*Client]bool),
 		channels:   availableChannels,
 	}
+	log.Printf("starting hub. available channels: %v\n", availableChannels)
+	return hub
 }
 
 // Broadcast message to the clients
@@ -67,21 +69,20 @@ func (h *Hub) Run() {
 			h.clients[client] = true
 			for _, c := range h.onRegister {
 				c(client.channels, client.send)
+				log.Printf("registered %s to channels %v\n", client.conn.RemoteAddr(), client.channels)
 			}
 		case client := <-h.unregister:
 			if _, ok := h.clients[client]; ok {
+				log.Printf("unregistering %s\n", client.conn.RemoteAddr())
 				delete(h.clients, client)
 				close(client.send)
 			}
 		case message := <-h.broadcast:
 			for client := range h.clients {
 				if client.CanSend(message.Channel) {
-					select {
-					case client.send <- message.Message:
-					default:
-						close(client.send)
-						delete(h.clients, client)
-					}
+					client.send <- message.Message
+					close(client.send)
+					delete(h.clients, client)
 				}
 			}
 		}
@@ -98,11 +99,10 @@ var upgrader = websocket.Upgrader{
 }
 
 // ServeWs handles websocket requests from the peer.
-func (h *Hub) ServeWs(w http.ResponseWriter, r *http.Request) {
+func (h *Hub) ServeWs(w http.ResponseWriter, r *http.Request) error {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Println(err)
-		return
+		return err
 	}
 
 	// get a list of subscription requests
@@ -127,4 +127,6 @@ func (h *Hub) ServeWs(w http.ResponseWriter, r *http.Request) {
 	// new goroutines.
 	go client.writePump()
 	go client.readPump()
+
+	return nil
 }

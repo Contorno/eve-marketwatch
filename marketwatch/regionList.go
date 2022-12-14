@@ -24,8 +24,4 @@ func (s *MarketWatch) startUpMarketWorkers() {
 			go s.contractWorker(region)
 		}
 	}
-
-	if s.doAuth {
-		go s.runStructures()
-	}
 }

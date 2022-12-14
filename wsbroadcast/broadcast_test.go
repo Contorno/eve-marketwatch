@@ -1,6 +1,7 @@
 package wsbroadcast
 
 import (
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -11,19 +12,26 @@ import (
 )
 
 func TestWebSocket(t *testing.T) {
-	// Setup a new hub
+	// Set up a new hub
 	hub := NewHub([]string{"market"})
 
-	hub.OnRegister(func(subs map[string]bool, send chan interface{}) {
-		send <- "sup"
-	})
+	hub.OnRegister(
+		func(subs map[string]bool, send chan interface{}) {
+			send <- "sup"
+		},
+	)
 
 	go hub.Run()
 
 	// Run a webserver for the socket
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		hub.ServeWs(w, r)
-	})
+	http.HandleFunc(
+		"/", func(w http.ResponseWriter, r *http.Request) {
+			err := hub.ServeWs(w, r)
+			if err != nil {
+				log.Fatal(err)
+			}
+		},
+	)
 
 	// Listen on random port
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -33,7 +41,7 @@ func TestWebSocket(t *testing.T) {
 	addr := listener.Addr()
 	go func() { panic(http.Serve(listener, nil)) }()
 
-	// Setup a client for testing
+	// Set up a client for testing
 	u := url.URL{Scheme: "ws", Host: addr.String(), Path: "/"}
 
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)

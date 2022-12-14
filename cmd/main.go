@@ -16,18 +16,29 @@ func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	log.SetPrefix("eve-marketwatch: ")
 	log.Println("starting eve-marketwatch")
-	mw := marketwatch.NewMarketWatch(
-		os.Getenv("ESI_REFRESHKEY"),
-		os.Getenv("ESI_CLIENTID_TOKENSTORE"),
-		os.Getenv("ESI_SECRET_TOKENSTORE"),
-	)
-	go mw.Run()
 
-	// Run metrics
+	// Run MW.
+	mw, err := marketwatch.NewMarketWatch()
+	if err != nil {
+		log.Fatal(err)
+	}
+	go func() {
+		err := mw.Run()
+		if err != nil {
+			log.Fatalln("failed to run market watch server")
+		}
+		log.Println("started the market watch server on port 3005")
+	}()
+
+	// Run metrics endpoint.
 	http.Handle("/metrics", promhttp.Handler())
-
-	log.Println("started eve-marketwatch")
-	go log.Fatalln(http.ListenAndServe(":3000", nil))
+	go func() {
+		err := http.ListenAndServe(":3000", nil)
+		if err != nil {
+			log.Fatalln("failed to run metrics server")
+		}
+		log.Println("started the metrics server on port 3000")
+	}()
 
 	// Handle SIGINT and SIGTERM.
 	ch := make(chan os.Signal, 1)

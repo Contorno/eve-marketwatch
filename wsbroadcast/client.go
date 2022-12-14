@@ -45,11 +45,27 @@ func (c *Client) CanSend(channel string) bool {
 func (c *Client) readPump() {
 	defer func() {
 		c.hub.unregister <- c
-		c.conn.Close()
+		err := c.conn.Close()
+		if err != nil {
+			log.Println(err)
+		}
 	}()
 	c.conn.SetReadLimit(1)
-	c.conn.SetReadDeadline(time.Now().Add(pongWait))
-	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
+	err := c.conn.SetReadDeadline(time.Now().Add(pongWait))
+	if err != nil {
+		log.Println(err)
+	}
+
+	c.conn.SetPongHandler(
+		func(string) error {
+			err := c.conn.SetReadDeadline(time.Now().Add(pongWait))
+			if err != nil {
+				return err
+			}
+			return nil
+		},
+	)
+
 	for {
 		// /dev/null
 		_, _, err := c.conn.ReadMessage()
@@ -72,12 +88,20 @@ func (c *Client) writePump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
-		c.conn.Close()
+		err := c.conn.Close()
+		if err != nil {
+			log.Println(err)
+		}
 	}()
+
 	for {
 		select {
 		case message, ok := <-c.send:
-			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			err := c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if err != nil {
+				log.Println(err)
+			}
+
 			if !ok {
 				// The hub closed the channel.
 				err := c.conn.WriteMessage(websocket.CloseMessage, []byte{})
@@ -88,15 +112,17 @@ func (c *Client) writePump() {
 			}
 
 			// Write the object out
-
-			err := c.conn.WriteJSON(message)
+			err = c.conn.WriteJSON(message)
 			if err != nil {
 				log.Println(err)
 				return
 			}
 
 		case <-ticker.C:
-			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			err := c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if err != nil {
+				log.Println(err)
+			}
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				log.Println(err)
 				return

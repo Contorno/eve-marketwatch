@@ -17,7 +17,7 @@ func init() {
 	// concurrency limiter
 	// 100 concurrent requests should fill 1 connection
 	apiTransportLimiter = make(chan bool, 100)
-	urlFilterRe = regexp.MustCompile("/v[0-9]{1}/|/[0-9]+/")
+	urlFilterRe = regexp.MustCompile("/v[0-9]/|/[0-9]+/")
 }
 
 // ApiTransport custom transport to chain into the HTTPClient to gather statistics.
@@ -35,7 +35,7 @@ func (t *ApiTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	tries := 0
 	for {
-		// Tickup retry counter
+		// Tick up retry counter
 		tries++
 
 		// Run the request and time the response
@@ -58,16 +58,16 @@ func (t *ApiTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			).Observe(float64(end.Sub(start).Nanoseconds()) / float64(time.Millisecond))
 
 			// Get the ESI error information
-			resetS := res.Header.Get("x-esi-error-limit-reset")
-			tokensS := res.Header.Get("x-esi-error-limit-remain")
+			limitReset := res.Header.Get("x-esi-error-limit-reset")
+			limitRemain := res.Header.Get("x-esi-error-limit-remain")
 
 			// If we cannot decode this is likely from another source.
 			esiRateLimiter := true
-			reset, err := strconv.ParseFloat(resetS, 64)
+			reset, err := strconv.ParseFloat(limitReset, 64)
 			if err != nil {
 				esiRateLimiter = false
 			}
-			tokens, err := strconv.ParseFloat(tokensS, 64)
+			tokens, err := strconv.ParseFloat(limitRemain, 64)
 			if err != nil {
 				esiRateLimiter = false
 			}
@@ -75,7 +75,13 @@ func (t *ApiTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			// Tick up and log any errors
 			if res.StatusCode >= 400 {
 				metricAPIErrors.Inc()
-				log.Printf("St: %d Res: %s Tok: %s - %s\n", res.StatusCode, resetS, tokensS, req.URL)
+				log.Printf(
+					"Status: %d Reset: %s Remain: %s - %s\n",
+					res.StatusCode,
+					limitReset,
+					limitRemain,
+					req.URL,
+				)
 				if !esiRateLimiter { // Not an ESI error
 					time.Sleep(time.Second * time.Duration(tries))
 				}
@@ -93,7 +99,7 @@ func (t *ApiTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			// Get out for "our bad" statuses
 			if res.StatusCode >= 400 && res.StatusCode < 420 {
 				if res.StatusCode != 403 {
-					log.Printf("Giving up %d %s\n", res.StatusCode, req.URL)
+					log.Printf("giving up %d %s\n", res.StatusCode, req.URL)
 				}
 				return res, triperr
 			}
@@ -103,29 +109,32 @@ func (t *ApiTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		}
 
 		if tries > 10 {
-			log.Printf("Too many tries\n")
+			log.Printf("too many tries\n")
 			return res, triperr
 		}
 	}
 }
 
 var (
-	metricAPICalls = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "evemarketwatch",
-		Subsystem: "api",
-		Name:      "calls",
-		Help:      "API call statistics.",
-		Buckets:   prometheus.ExponentialBuckets(10, 1.45, 20),
-	},
+	metricAPICalls = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: "evemarketwatch",
+			Subsystem: "api",
+			Name:      "calls",
+			Help:      "API call statistics.",
+			Buckets:   prometheus.ExponentialBuckets(10, 1.45, 20),
+		},
 		[]string{"host", "status", "try", "endpoint"},
 	)
 
-	metricAPIErrors = prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "evemarketwatch",
-		Subsystem: "api",
-		Name:      "errors",
-		Help:      "Count of API errors.",
-	})
+	metricAPIErrors = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: "evemarketwatch",
+			Subsystem: "api",
+			Name:      "errors",
+			Help:      "Count of API errors.",
+		},
+	)
 )
 
 func init() {
