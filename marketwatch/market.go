@@ -51,7 +51,7 @@ func (s *MarketWatch) marketWorker(regionID int32) {
 
 		// Get the other pages concurrently
 		for pages > 1 {
-			wg.Add(1) // count whats running
+			wg.Add(1) // count what's running
 			go func(page int32) {
 				defer wg.Done() // release when done
 
@@ -91,8 +91,8 @@ func (s *MarketWatch) marketWorker(regionID int32) {
 			continue
 		}
 
-		changes := []OrderChange{}
-		newOrders := []esi.GetMarketsRegionIdOrders200Ok{}
+		var changes []OrderChange
+		var newOrders []esi.GetMarketsRegionIdOrders200Ok
 		// Add all the orders together
 		for o := range rchan {
 			for i := range o {

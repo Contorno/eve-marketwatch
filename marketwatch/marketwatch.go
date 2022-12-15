@@ -30,7 +30,7 @@ type MarketWatch struct {
 // NewMarketWatch creates a new MarketWatch microservice
 func NewMarketWatch() (*MarketWatch, error) {
 	httpclient := &http.Client{
-		Transport: &ApiTransport{
+		Transport: &APITransport{
 			next: &http.Transport{
 				MaxIdleConns: 200,
 				DialContext: (&net.Dialer{
@@ -38,7 +38,7 @@ func NewMarketWatch() (*MarketWatch, error) {
 					KeepAlive: 30 * time.Second,
 				}).DialContext,
 				IdleConnTimeout:       3 * 60 * time.Second,
-				TLSHandshakeTimeout:   10 * time.Second,
+				TLSHandshakeTimeout:   15 * time.Second,
 				ResponseHeaderTimeout: 60 * time.Second,
 				ExpectContinueTimeout: 0,
 				MaxIdleConnsPerHost:   20,
@@ -50,7 +50,7 @@ func NewMarketWatch() (*MarketWatch, error) {
 		// ESI Client
 		esi: goesi.NewAPIClient(
 			httpclient,
-			"eve-marketwatch (admin@eve.watch)",
+			"admin@eve.watch",
 		),
 
 		// Websocket Broadcaster
@@ -63,13 +63,16 @@ func NewMarketWatch() (*MarketWatch, error) {
 }
 
 // Run starts listening on port 3005 for API requests
-func (s *MarketWatch) Run() error {
-
-	// Set up the callback to send the market to the client on connect
+func (s *MarketWatch) Run() error { // Set up the callback to send the market to the client on connect
 	s.broadcast.OnRegister(s.dumpMarket)
 	go s.broadcast.Run()
 
-	go s.startUpMarketWorkers()
+	go func() {
+		err := s.startUpMarketWorkers()
+		if err != nil {
+			log.Fatalln(err)
+		}
+	}()
 
 	// Handler for the websocket
 	http.HandleFunc(

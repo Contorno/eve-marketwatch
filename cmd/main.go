@@ -22,6 +22,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	go func() {
 		err := mw.Run()
 		if err != nil {

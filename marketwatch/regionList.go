@@ -6,11 +6,18 @@ import (
 	"time"
 )
 
-func (s *MarketWatch) startUpMarketWorkers() {
+func (s *MarketWatch) startUpMarketWorkers() error {
 	// Get all the regions and fire up workers for each
-	regions, _, err := s.esi.ESI.UniverseApi.GetUniverseRegions(context.Background(), nil)
+	regions, res, err := s.esi.ESI.UniverseApi.GetUniverseRegions(context.Background(), nil)
+	defer func() {
+		err := res.Body.Close()
+		if err != nil {
+			log.Println(err)
+		}
+	}()
+
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	for _, region := range regions {
@@ -24,4 +31,6 @@ func (s *MarketWatch) startUpMarketWorkers() {
 			go s.contractWorker(region)
 		}
 	}
+
+	return nil
 }

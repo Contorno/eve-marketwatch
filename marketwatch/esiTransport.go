@@ -20,20 +20,21 @@ func init() {
 	urlFilterRe = regexp.MustCompile("/v[0-9]/|/[0-9]+/")
 }
 
-// ApiTransport custom transport to chain into the HTTPClient to gather statistics.
-type ApiTransport struct {
+// APITransport custom transport to chain into the HTTPClient to gather statistics.
+type APITransport struct {
 	next *http.Transport
 }
 
 // RoundTrip wraps http.DefaultTransport.RoundTrip to provide stats and handle error rates.
-func (t *ApiTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+func (t *APITransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	// Limit concurrency
 	apiTransportLimiter <- true
 
 	// Free the worker
-	defer func() { <-apiTransportLimiter }() // Loop until success
+	defer func() { <-apiTransportLimiter }()
 
 	tries := 0
+
 	for {
 		// Tick up retry counter
 		tries++
@@ -67,7 +68,7 @@ func (t *ApiTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			if err != nil {
 				esiRateLimiter = false
 			}
-			tokens, err := strconv.ParseFloat(limitRemain, 64)
+			remain, err := strconv.ParseFloat(limitRemain, 64)
 			if err != nil {
 				esiRateLimiter = false
 			}
@@ -82,34 +83,39 @@ func (t *ApiTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 					limitRemain,
 					req.URL,
 				)
-				if !esiRateLimiter { // Not an ESI error
+
+				var responsible string
+
+				if res.StatusCode < 500 {
+					responsible = "client"
+				} else {
+					responsible = "server"
+				}
+
+				log.Printf(
+					"request failed due to %s error. Status code: %d.\nRequest URL: %s\nMessage: %s\n",
+					responsible,
+					res.StatusCode,
+					req.URL,
+					res.Status,
+				)
+
+				if esiRateLimiter {
+					percentRemain := 1 - (remain / 100)
+					duration := reset * percentRemain
+					time.Sleep(time.Second * time.Duration(duration))
+				} else {
 					time.Sleep(time.Second * time.Duration(tries))
 				}
 			}
 
-			// Backoff
-			if res.StatusCode == 420 { // Something went wrong
-				time.Sleep(time.Duration(reset) * time.Second)
-			} else if esiRateLimiter { // Sleep based on error rate.
-				percentRemain := 1 - (tokens / 100)
-				duration := reset * percentRemain
-				time.Sleep(time.Second * time.Duration(duration))
-			}
-
-			// Get out for "our bad" statuses
-			if res.StatusCode >= 400 && res.StatusCode < 420 {
-				if res.StatusCode != 403 {
-					log.Printf("giving up %d %s\n", res.StatusCode, req.URL)
-				}
-				return res, triperr
-			}
 			if res.StatusCode >= 200 && res.StatusCode < 400 {
 				return res, triperr
 			}
 		}
 
-		if tries > 10 {
-			log.Printf("too many tries\n")
+		if tries > 15 {
+			log.Printf("too many tries, aborting\n")
 			return res, triperr
 		}
 	}
