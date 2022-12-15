@@ -1,7 +1,6 @@
 package marketwatch
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -30,12 +29,13 @@ type APITransport struct {
 	next *http.Transport
 }
 
-func logRoundTrip(req *http.Request, res *http.Response, reset float64, remain float64) {
-	fmtStr := "\n\tRequest: %s\n\t\tQuery parameters: %v\n\t\tStatus code: %d.\n\t\tStatus: %s." +
-		"\n\t\tError limit reset: %f\n\t\tError limit remaining: %f\n"
+func logRoundTrip(req *http.Request, res *http.Response, reset int64, remain int64) {
+	fmtStr := "\n\tRequest: %s\n\t\tQuery parameters: %v\n\t\tHeaders: %v\n\t\tStatus code: %d.\n\t\tStatus: %s." +
+		"\n\t\tSeconds until error limit reset: %d\n\t\tError limit remaining: %d\n"
 	fmtArgs := []any{
 		req.Method + " " + req.URL.Path,
 		req.URL.Query(),
+		req.Header,
 		res.StatusCode,
 		res.Status,
 		reset,
@@ -49,10 +49,7 @@ func logRoundTrip(req *http.Request, res *http.Response, reset float64, remain f
 		debug = false
 	}
 
-	if debug {
-		fmtArgs = append(fmtArgs, fmt.Sprintf("%v", req.Header))
-		fmtStr += "\t\tHeaders: %s\n"
-	} else if !debug && (res.StatusCode >= 200 && res.StatusCode < 400) {
+	if !debug && (res.StatusCode >= 200 && res.StatusCode < 400) {
 		return
 	}
 
@@ -98,11 +95,11 @@ func (t *APITransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 			// If we cannot decode this is likely from another source.
 			esiRateLimiter := true
-			reset, err := strconv.ParseFloat(limitReset, 64)
+			reset, err := strconv.ParseInt(limitReset, 10, 8)
 			if err != nil {
 				esiRateLimiter = false
 			}
-			remain, err := strconv.ParseFloat(limitRemain, 64)
+			remain, err := strconv.ParseInt(limitRemain, 10, 8)
 			if err != nil {
 				esiRateLimiter = false
 			}
