@@ -120,11 +120,11 @@ func (t *APITransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 			if res.StatusCode >= 200 && res.StatusCode < 400 {
 				logRoundTrip(req, res, reset, remain)
-				return res, nil
+				return res, triperr
 			}
 		}
 
-		if tries > 15 {
+		if tries > 5 {
 			log.Printf("too many tries, aborting\n")
 			return res, triperr
 		}
