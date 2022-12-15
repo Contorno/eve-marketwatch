@@ -37,11 +37,11 @@ func NewMarketWatch() (*MarketWatch, error) {
 					Timeout:   120 * time.Second,
 					KeepAlive: 30 * time.Second,
 				}).DialContext,
-				IdleConnTimeout:       3 * 60 * time.Second,
+				IdleConnTimeout:       5 * 60 * time.Second,
 				TLSHandshakeTimeout:   15 * time.Second,
 				ResponseHeaderTimeout: 60 * time.Second,
 				ExpectContinueTimeout: 0,
-				MaxIdleConnsPerHost:   20,
+				MaxIdleConnsPerHost:   180,
 			},
 		},
 	}
@@ -67,12 +67,10 @@ func (s *MarketWatch) Run() error { // Set up the callback to send the market to
 	s.broadcast.OnRegister(s.dumpMarket)
 	go s.broadcast.Run()
 
-	go func() {
-		err := s.startUpMarketWorkers()
-		if err != nil {
-			log.Fatalln(err)
-		}
-	}()
+	err := s.startUpMarketWorkers()
+	if err != nil {
+		return err
+	}
 
 	// Handler for the websocket
 	http.HandleFunc(

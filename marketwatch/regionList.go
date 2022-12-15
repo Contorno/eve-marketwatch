@@ -3,22 +3,35 @@ package marketwatch
 import (
 	"context"
 	"log"
+	"net/http"
 	"time"
 )
 
 func (s *MarketWatch) startUpMarketWorkers() error {
-	// Get all the regions and fire up workers for each
-	regions, res, err := s.esi.ESI.UniverseApi.GetUniverseRegions(context.Background(), nil)
+	var regions []int32
+	var res *http.Response
+	var err error
+	tries := 0
+
+	for {
+		tries++
+		regions, res, err = s.esi.ESI.UniverseApi.GetUniverseRegions(context.Background(), nil)
+
+		if err == nil {
+			break
+		} else if tries > 5 {
+			return err
+		} else {
+			time.Sleep(time.Second * 5)
+		}
+	}
+
 	defer func() {
 		err := res.Body.Close()
 		if err != nil {
 			log.Println(err)
 		}
 	}()
-
-	if err != nil {
-		return err
-	}
 
 	for _, region := range regions {
 		// Prebuild the maps

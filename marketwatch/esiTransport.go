@@ -1,14 +1,19 @@
 package marketwatch
 
 import (
+	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+// debug server
+var debugRaw = os.Getenv("DEBUG")
 
 var apiTransportLimiter chan bool
 var urlFilterRe *regexp.Regexp
@@ -23,6 +28,35 @@ func init() {
 // APITransport custom transport to chain into the HTTPClient to gather statistics.
 type APITransport struct {
 	next *http.Transport
+}
+
+func logRoundTrip(req *http.Request, res *http.Response, reset float64, remain float64) {
+	fmtStr := "\n\tRequest: %s\n\t\tQuery parameters: %v\n\t\tStatus code: %d.\n\t\tStatus: %s." +
+		"\n\t\tError limit reset: %f\n\t\tError limit remaining: %f\n"
+	fmtArgs := []any{
+		req.Method + " " + req.URL.Path,
+		req.URL.Query(),
+		res.StatusCode,
+		res.Status,
+		reset,
+		remain,
+	}
+
+	var debug bool
+	if debugRaw == "true" {
+		debug = true
+	} else {
+		debug = false
+	}
+
+	if debug {
+		fmtArgs = append(fmtArgs, fmt.Sprintf("%v", req.Header))
+		fmtStr += "\t\tHeaders: %s\n"
+	} else if !debug && (res.StatusCode >= 200 && res.StatusCode < 400) {
+		return
+	}
+
+	log.Printf(fmtStr, fmtArgs...)
 }
 
 // RoundTrip wraps http.DefaultTransport.RoundTrip to provide stats and handle error rates.
@@ -76,29 +110,7 @@ func (t *APITransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			// Tick up and log any errors
 			if res.StatusCode >= 400 {
 				metricAPIErrors.Inc()
-				log.Printf(
-					"Status: %d Reset: %s Remain: %s - %s\n",
-					res.StatusCode,
-					limitReset,
-					limitRemain,
-					req.URL,
-				)
-
-				var responsible string
-
-				if res.StatusCode < 500 {
-					responsible = "client"
-				} else {
-					responsible = "server"
-				}
-
-				log.Printf(
-					"request failed due to %s error. Status code: %d.\nRequest URL: %s\nMessage: %s\n",
-					responsible,
-					res.StatusCode,
-					req.URL,
-					res.Status,
-				)
+				logRoundTrip(req, res, reset, remain)
 
 				if esiRateLimiter {
 					percentRemain := 1 - (remain / 100)
@@ -110,7 +122,8 @@ func (t *APITransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			}
 
 			if res.StatusCode >= 200 && res.StatusCode < 400 {
-				return res, triperr
+				logRoundTrip(req, res, reset, remain)
+				return res, nil
 			}
 		}
 

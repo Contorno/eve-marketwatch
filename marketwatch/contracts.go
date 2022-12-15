@@ -92,7 +92,6 @@ func (s *MarketWatch) contractWorker(regionID int32) {
 		for o := range rchan {
 		Restart:
 			for i := range o {
-
 				// Ignore expired contracts
 				if o[i].DateExpired.Before(time.Now()) {
 					continue
