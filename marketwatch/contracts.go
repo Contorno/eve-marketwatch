@@ -62,7 +62,7 @@ func (s *MarketWatch) contractWorker(regionID int32) {
 				}
 
 				// Are we too close to the end of the window?
-				duration := timeUntilCacheExpires(r)
+				duration = timeUntilCacheExpires(r)
 				if duration.Seconds() < 20 {
 					echan <- errors.New("contract too close to end of window")
 					return
@@ -183,12 +183,10 @@ func (s *MarketWatch) getContractItems(contract *Contract) error {
 		log.Println(err)
 		return err
 	}
-	rchan <- items
 
-	// Get number of pages.
+	rchan <- items
 	pages, _ := getPages(res)
 
-	// Get the other pages concurrently
 	for pages > 1 {
 		wg.Add(1) // count what's running
 		go func(page int32) {

@@ -67,7 +67,7 @@ func (s *MarketWatch) marketWorker(regionID int32) {
 				}
 
 				// Are we too close to the end of the window?
-				duration := timeUntilCacheExpires(r)
+				duration = timeUntilCacheExpires(r)
 				if duration.Seconds() < 20 {
 					echan <- errors.New("market too close to end of window")
 					return
