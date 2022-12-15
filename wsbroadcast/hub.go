@@ -51,7 +51,7 @@ func NewHub(availableChannels []string) *Hub {
 	return hub
 }
 
-// Broadcast message to the clients
+// Broadcast the message to clients
 func (h *Hub) Broadcast(channel string, m interface{}) {
 	h.broadcast <- fullMessage{channel, m}
 }
@@ -90,7 +90,7 @@ func (h *Hub) Run() {
 }
 
 var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
+	ReadBufferSize:  1024 * 100,
 	WriteBufferSize: 1024 * 1024 * 500,
 	CheckOrigin: func(r *http.Request) bool {
 		return true
@@ -117,13 +117,13 @@ func (h *Hub) ServeWs(w http.ResponseWriter, r *http.Request) error {
 	client := &Client{
 		hub:      h,
 		conn:     conn,
-		send:     make(chan interface{}, 256),
+		send:     make(chan interface{}, 1024),
 		channels: channels,
 	}
 
 	client.hub.register <- client
 
-	// Allow collection of memory referenced by the caller by doing all work in
+	// Allow the collection of memory referenced by the caller by doing all work in
 	// new goroutines.
 	go client.writePump()
 	go client.readPump()
