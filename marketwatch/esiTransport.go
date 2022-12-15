@@ -11,20 +11,16 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// debug server
 var debugRaw = os.Getenv("DEBUG")
-
 var apiTransportLimiter chan bool
 var urlFilterRe *regexp.Regexp
 
 func init() {
-	// concurrency limiter
-	// 100 concurrent requests should fill 1 connection
+	// Concurrency limiter. 100 concurrent requests should fill 1 connection.
 	apiTransportLimiter = make(chan bool, 100)
 	urlFilterRe = regexp.MustCompile("/v[0-9]/|/[0-9]+/")
 }
 
-// APITransport custom transport to chain into the HTTPClient to gather statistics.
 type APITransport struct {
 	next *http.Transport
 }
@@ -60,14 +56,11 @@ func logRoundTrip(req *http.Request, res *http.Response, reset int64, remain int
 func (t *APITransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	// Limit concurrency
 	apiTransportLimiter <- true
-
-	// Free the worker
 	defer func() { <-apiTransportLimiter }()
 
 	tries := 0
 
 	for {
-		// Tick up retry counter
 		tries++
 
 		// Run the request and time the response
@@ -77,7 +70,6 @@ func (t *APITransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 		endpoint := urlFilterRe.ReplaceAllString(req.URL.Path, "/")
 
-		// We got a response
 		if res != nil {
 			// Log metrics
 			metricAPICalls.With(
@@ -93,7 +85,6 @@ func (t *APITransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			limitReset := res.Header.Get("x-esi-error-limit-reset")
 			limitRemain := res.Header.Get("x-esi-error-limit-remain")
 
-			// If we cannot decode this is likely from another source.
 			esiRateLimiter := true
 			reset, err := strconv.ParseInt(limitReset, 10, 8)
 			if err != nil {
@@ -104,10 +95,14 @@ func (t *APITransport) RoundTrip(req *http.Request) (*http.Response, error) {
 				esiRateLimiter = false
 			}
 
-			// Tick up and log any errors
 			if res.StatusCode >= 400 {
 				metricAPIErrors.Inc()
 				logRoundTrip(req, res, reset, remain)
+
+				// do not retry 4xx errors
+				if res.StatusCode >= 400 && res.StatusCode < 500 {
+					return res, triperr
+				}
 
 				if esiRateLimiter {
 					percentRemain := 1 - (remain / 100)
