@@ -90,7 +90,7 @@ func (h *Hub) Run() {
 }
 
 var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024 * 100,
+	ReadBufferSize:  1024,
 	WriteBufferSize: 1024 * 1024 * 500,
 	CheckOrigin: func(r *http.Request) bool {
 		return true
