@@ -111,9 +111,7 @@ func (t *APITransport) RoundTrip(req *http.Request) (*http.Response, error) {
 				} else {
 					time.Sleep(time.Second * time.Duration(tries))
 				}
-			}
-
-			if res.StatusCode >= 200 && res.StatusCode < 400 {
+			} else if res.StatusCode >= 200 && res.StatusCode < 400 {
 				logRoundTrip(req, res, reset, remain)
 				return res, triperr
 			}
