@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/contorno/eve-marketwatch/wsbroadcast"
+	"github.com/getsentry/sentry-go"
 
 	"github.com/contorno/goesi"
 )
@@ -62,13 +63,15 @@ func NewMarketWatch() (*MarketWatch, error) {
 	}, nil
 }
 
-// Run starts listening on port 3005 for API requests
-func (s *MarketWatch) Run() error { // Set up the callback to send the market to the client on connect
+func (s *MarketWatch) Run() error {
 	s.broadcast.OnRegister(s.dumpMarket)
-	go s.broadcast.Run()
+
+	// Start the websocket handler
+	go s.broadcast.Run(sentry.CurrentHub().Clone())
 
 	err := s.startUpMarketWorkers()
 	if err != nil {
+		sentry.CaptureException(err)
 		return err
 	}
 
@@ -78,10 +81,11 @@ func (s *MarketWatch) Run() error { // Set up the callback to send the market to
 		func(w http.ResponseWriter, r *http.Request) {
 			err := s.broadcast.ServeWs(w, r)
 			if err != nil {
+				sentry.CaptureException(err)
 				log.Println(err)
 			}
 		},
 	)
 
-	return http.ListenAndServe(":3005", nil)
+	return http.ListenAndServe(":3005", nil) //nolint:gosec
 }

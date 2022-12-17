@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/gorilla/websocket"
 )
 
@@ -61,8 +62,14 @@ func (h *Hub) OnRegister(f HandlerFunc) {
 	h.onRegister = append(h.onRegister, f)
 }
 
-// Run the hub
-func (h *Hub) Run() {
+// Run the websocket handler
+func (h *Hub) Run(localHub *sentry.Hub) {
+	localHub.ConfigureScope(
+		func(scope *sentry.Scope) {
+			scope.SetTag("locationHash", "go#run-wsbroadcast-hub")
+		},
+	)
+
 	for {
 		select {
 		case client := <-h.register:
@@ -102,6 +109,7 @@ var upgrader = websocket.Upgrader{
 func (h *Hub) ServeWs(w http.ResponseWriter, r *http.Request) error {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
+		sentry.CaptureException(err)
 		return err
 	}
 
@@ -117,16 +125,13 @@ func (h *Hub) ServeWs(w http.ResponseWriter, r *http.Request) error {
 	client := &Client{
 		hub:      h,
 		conn:     conn,
-		send:     make(chan interface{}, 1024),
+		send:     make(chan interface{}, 256),
 		channels: channels,
 	}
 
 	client.hub.register <- client
-
-	// Allow the collection of memory referenced by the caller by doing all work in
-	// new goroutines.
-	go client.writePump()
-	go client.readPump()
+	go client.writePump(sentry.CurrentHub().Clone())
+	go client.readPump(sentry.CurrentHub().Clone())
 
 	return nil
 }

@@ -11,10 +11,17 @@ import (
 
 	"github.com/contorno/goesi/esi"
 	"github.com/contorno/optional"
+	"github.com/getsentry/sentry-go"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func (s *MarketWatch) contractWorker(regionID int32) {
+func (s *MarketWatch) contractWorker(regionID int32, localHub *sentry.Hub) {
+	localHub.ConfigureScope(
+		func(scope *sentry.Scope) {
+			scope.SetTag("locationHash", "go#contract-worker")
+		},
+	)
+
 	// For totalization
 	wg := sync.WaitGroup{}
 
@@ -31,6 +38,7 @@ func (s *MarketWatch) contractWorker(regionID int32) {
 			context.Background(), regionID, nil,
 		)
 		if err != nil {
+			sentry.CaptureException(err)
 			log.Println(err)
 			continue
 		}
@@ -48,13 +56,17 @@ func (s *MarketWatch) contractWorker(regionID int32) {
 		// Get the other pages concurrently
 		for pages > 1 {
 			wg.Add(1) // count what's running
-			go func(page int32) {
+			go func(page int32, localHub *sentry.Hub) {
+				localHub.ConfigureScope(
+					func(scope *sentry.Scope) {
+						scope.SetTag("locationHash", "go#contract-worker-get-contracts-public-region-id-page")
+					},
+				)
+
 				defer wg.Done() // release when done
 
 				contracts, r, err := s.esi.ESI.ContractsApi.GetContractsPublicRegionId(
-					context.Background(),
-					regionID,
-					&esi.GetContractsPublicRegionIdOpts{Page: optional.NewInt32(page)},
+					context.Background(), regionID, &esi.GetContractsPublicRegionIdOpts{Page: optional.NewInt32(page)},
 				)
 				if err != nil {
 					echan <- err
@@ -70,7 +82,7 @@ func (s *MarketWatch) contractWorker(regionID int32) {
 
 				// Add the contracts to the channel
 				rchan <- contracts
-			}(pages)
+			}(pages, sentry.CurrentHub().Clone())
 			pages--
 		}
 
@@ -81,8 +93,9 @@ func (s *MarketWatch) contractWorker(regionID int32) {
 		close(echan)
 
 		for err := range echan {
-			// Start over if any requests failed
+			sentry.CaptureException(err)
 			log.Println(err)
+			// Start over if any requests failed
 			continue
 		}
 
@@ -102,6 +115,7 @@ func (s *MarketWatch) contractWorker(regionID int32) {
 				if o[i].Type_ == "item_exchange" || o[i].Type_ == "auction" {
 					err := s.getContractItems(&contract)
 					if err != nil {
+						sentry.CaptureException(err)
 						goto Restart
 					}
 				}
@@ -109,6 +123,7 @@ func (s *MarketWatch) contractWorker(regionID int32) {
 				if o[i].Type_ == "auction" {
 					err := s.getContractBids(&contract)
 					if err != nil {
+						sentry.CaptureException(err)
 						goto Restart
 					}
 				}
@@ -134,8 +149,7 @@ func (s *MarketWatch) contractWorker(regionID int32) {
 
 		if len(newContracts) > 0 {
 			s.broadcast.Broadcast(
-				"contract",
-				Message{
+				"contract", Message{
 					Action:  "contractAddition",
 					Payload: newContracts,
 				},
@@ -145,8 +159,7 @@ func (s *MarketWatch) contractWorker(regionID int32) {
 		// Only bids really change.
 		if len(changes) > 0 {
 			s.broadcast.Broadcast(
-				"contract",
-				Message{
+				"contract", Message{
 					Action:  "contractChange",
 					Payload: changes,
 				},
@@ -155,8 +168,7 @@ func (s *MarketWatch) contractWorker(regionID int32) {
 
 		if len(deletions) > 0 {
 			s.broadcast.Broadcast(
-				"contract",
-				Message{
+				"contract", Message{
 					Action:  "contractDeletion",
 					Payload: deletions,
 				},
@@ -180,6 +192,7 @@ func (s *MarketWatch) getContractItems(contract *Contract) error {
 		context.Background(), contract.Contract.Contract.ContractId, nil,
 	)
 	if err != nil {
+		sentry.CaptureException(err)
 		log.Println(err)
 		return err
 	}
@@ -189,7 +202,12 @@ func (s *MarketWatch) getContractItems(contract *Contract) error {
 
 	for pages > 1 {
 		wg.Add(1) // count what's running
-		go func(page int32) {
+		go func(page int32, localHub *sentry.Hub) {
+			localHub.ConfigureScope(
+				func(scope *sentry.Scope) {
+					scope.SetTag("locationHash", "go#get-contract-items")
+				},
+			)
 			defer wg.Done()
 
 			items, _, err := s.esi.ESI.ContractsApi.GetContractsPublicItemsContractId(
@@ -204,7 +222,7 @@ func (s *MarketWatch) getContractItems(contract *Contract) error {
 
 			// Add the contracts to the channel
 			rchan <- items
-		}(pages)
+		}(pages, sentry.CurrentHub().Clone())
 		pages--
 	}
 
@@ -240,17 +258,22 @@ func (s *MarketWatch) getContractBids(contract *Contract) error {
 		context.Background(), contract.Contract.Contract.ContractId, nil,
 	)
 	if err != nil {
+		sentry.CaptureException(err)
 		log.Println(err)
 	}
 	rchan <- bids
-
-	// Figure out if there are more pages
 	pages, _ := getPages(res)
 
 	// Get the other pages concurrently
 	for pages > 1 {
 		wg.Add(1) // count what's running
-		go func(page int32) {
+		go func(page int32, localHub *sentry.Hub) {
+			localHub.ConfigureScope(
+				func(scope *sentry.Scope) {
+					scope.SetTag("locationHash", "go#get-contract-bids")
+				},
+			)
+
 			defer wg.Done()
 
 			bids, _, err := s.esi.ESI.ContractsApi.GetContractsPublicBidsContractId(
@@ -263,20 +286,19 @@ func (s *MarketWatch) getContractBids(contract *Contract) error {
 				return
 			}
 
-			// Add the contracts to the channel
 			rchan <- bids
-		}(pages)
+		}(pages, sentry.CurrentHub().Clone())
 		pages--
 	}
 
 	wg.Wait()
 
-	// Close the channels
 	close(rchan)
 	close(echan)
 
 	for err := range echan {
 		// Fail all if one fails
+		sentry.CaptureException(err)
 		log.Println(err)
 		return err
 	}
@@ -298,8 +320,7 @@ var (
 			Name:      "pull",
 			Help:      "Market Pull Statistics",
 			Buckets:   prometheus.ExponentialBuckets(10, 1.6, 20),
-		},
-		[]string{"locationID"},
+		}, []string{"locationID"},
 	)
 )
 

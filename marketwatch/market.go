@@ -11,10 +11,17 @@ import (
 
 	"github.com/contorno/goesi/esi"
 	"github.com/contorno/optional"
+	"github.com/getsentry/sentry-go"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func (s *MarketWatch) marketWorker(regionID int32) {
+func (s *MarketWatch) marketWorker(regionID int32, localHub *sentry.Hub) {
+	localHub.ConfigureScope(
+		func(scope *sentry.Scope) {
+			scope.SetTag("locationHash", "go#market-worker")
+		},
+	)
+
 	// For totalization
 	wg := sync.WaitGroup{}
 
@@ -31,6 +38,7 @@ func (s *MarketWatch) marketWorker(regionID int32) {
 			context.Background(), "all", regionID, nil,
 		)
 		if err != nil {
+			sentry.CaptureException(err)
 			log.Println(err)
 			continue
 		}
@@ -39,6 +47,7 @@ func (s *MarketWatch) marketWorker(regionID int32) {
 		// Figure out if there are more pages
 		pages, err := getPages(res)
 		if err != nil {
+			sentry.CaptureException(err)
 			log.Println(err)
 			continue
 		}
@@ -52,8 +61,12 @@ func (s *MarketWatch) marketWorker(regionID int32) {
 		// Get the other pages concurrently
 		for pages > 1 {
 			wg.Add(1) // count what's running
-			go func(page int32) {
-				defer wg.Done() // release when done
+			go func(page int32, localHub *sentry.Hub) {
+				localHub.ConfigureScope(
+					func(scope *sentry.Scope) {
+						scope.SetTag("locationHash", "go#market-worker-get-market-region-id-orders")
+					},
+				)
 
 				orders, r, err := s.esi.ESI.MarketApi.GetMarketsRegionIdOrders(
 					context.Background(),
@@ -73,9 +86,11 @@ func (s *MarketWatch) marketWorker(regionID int32) {
 					return
 				}
 
+				defer wg.Done() // release when done
+
 				// Add the orders to the channel
 				rchan <- orders
-			}(pages)
+			}(pages, sentry.CurrentHub().Clone())
 			pages--
 		}
 
@@ -86,8 +101,9 @@ func (s *MarketWatch) marketWorker(regionID int32) {
 		close(echan)
 
 		for err := range echan {
-			// Start over if any requests failed
+			sentry.CaptureException(err)
 			log.Println(err)
+			// Start over if any requests failed
 			continue
 		}
 
@@ -117,8 +133,7 @@ func (s *MarketWatch) marketWorker(regionID int32) {
 
 		if len(newOrders) > 0 {
 			s.broadcast.Broadcast(
-				"market",
-				Message{
+				"market", Message{
 					Action:  "addition",
 					Payload: newOrders,
 				},
@@ -127,8 +142,7 @@ func (s *MarketWatch) marketWorker(regionID int32) {
 
 		if len(changes) > 0 {
 			s.broadcast.Broadcast(
-				"market",
-				Message{
+				"market", Message{
 					Action:  "change",
 					Payload: changes,
 				},
@@ -137,8 +151,7 @@ func (s *MarketWatch) marketWorker(regionID int32) {
 
 		if len(deletions) > 0 {
 			s.broadcast.Broadcast(
-				"market",
-				Message{
+				"market", Message{
 					Action:  "deletion",
 					Payload: deletions,
 				},
@@ -152,14 +165,14 @@ func (s *MarketWatch) marketWorker(regionID int32) {
 
 // Metrics
 var (
-	metricMarketTimePull = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "evemarketwatch",
-		Subsystem: "market",
-		Name:      "pull",
-		Help:      "Market Pull Statistics",
-		Buckets:   prometheus.ExponentialBuckets(10, 1.6, 20),
-	},
-		[]string{"locationID"},
+	metricMarketTimePull = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: "evemarketwatch",
+			Subsystem: "market",
+			Name:      "pull",
+			Help:      "Market Pull Statistics",
+			Buckets:   prometheus.ExponentialBuckets(10, 1.6, 20),
+		}, []string{"locationID"},
 	)
 )
 

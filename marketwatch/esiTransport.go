@@ -1,6 +1,7 @@
 package marketwatch
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -101,15 +102,16 @@ func (t *APITransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 				// do not retry 4xx errors
 				if res.StatusCode >= 400 && res.StatusCode < 500 {
+					fmt.Printf("%d error for %s %s. Skipping retry.\n", res.StatusCode, req.Method, req.URL.Path)
 					return res, triperr
 				}
 
 				if esiRateLimiter {
 					percentRemain := 1 - (remain / 100)
-					duration := reset * percentRemain
+					duration := 5 + (reset * percentRemain)
 					time.Sleep(time.Second * time.Duration(duration))
 				} else {
-					time.Sleep(time.Second * time.Duration(tries))
+					time.Sleep(time.Second * time.Duration((tries*tries)+(4*tries)))
 				}
 			} else if res.StatusCode >= 200 && res.StatusCode < 400 {
 				logRoundTrip(req, res, reset, remain)

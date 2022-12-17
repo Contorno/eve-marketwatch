@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 )
@@ -21,7 +22,7 @@ func TestWebSocket(t *testing.T) {
 		},
 	)
 
-	go hub.Run()
+	go hub.Run(sentry.CurrentHub().Clone())
 
 	// Run a webserver for the socket
 	http.HandleFunc(

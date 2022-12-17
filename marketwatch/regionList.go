@@ -5,6 +5,8 @@ import (
 	"log"
 	"net/http"
 	"time"
+
+	"github.com/getsentry/sentry-go"
 )
 
 func (s *MarketWatch) startUpMarketWorkers() error {
@@ -20,30 +22,31 @@ func (s *MarketWatch) startUpMarketWorkers() error {
 		if err == nil {
 			break
 		} else if tries > 5 {
+			sentry.CaptureException(err)
 			return err
 		} else {
 			time.Sleep(time.Second * 5)
 		}
 	}
 
-	defer func() {
-		err := res.Body.Close()
-		if err != nil {
-			log.Println(err)
-		}
-	}()
-
 	for _, region := range regions {
-		// Prebuild the maps
 		s.createMarketStore(int64(region))
 		s.createContractStore(int64(region))
 		// Ignore non-market regions
 		if region < 11000000 || region == 11000031 {
-			time.Sleep(time.Millisecond * 500)
-			go s.marketWorker(region)
-			go s.contractWorker(region)
+			time.Sleep(time.Second * 1)
+			go s.marketWorker(region, sentry.CurrentHub().Clone())
+			go s.contractWorker(region, sentry.CurrentHub().Clone())
 		}
 	}
+
+	defer func() {
+		err := res.Body.Close()
+		if err != nil {
+			sentry.CaptureException(err)
+			log.Println(err)
+		}
+	}()
 
 	return nil
 }
