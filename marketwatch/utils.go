@@ -1,6 +1,8 @@
 package marketwatch
 
 import (
+	"crypto/rand"
+	"math/big"
 	"net/http"
 	"strconv"
 	"time"
@@ -26,4 +28,10 @@ func timeUntilCacheExpires(r *http.Response) time.Duration {
 		duration += time.Second * 15
 	}
 	return duration
+}
+
+// Sleep for a random amount of time to avoid hitting the rate limit
+func sleepRandom(max int64, additional float64) {
+	nBig, _ := rand.Int(rand.Reader, big.NewInt(max*10))
+	time.Sleep(time.Duration(additional+float64(nBig.Int64())/10) * time.Second)
 }

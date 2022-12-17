@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"strconv"
 	"sync"
@@ -64,6 +65,9 @@ func (s *MarketWatch) contractWorker(regionID int32, localHub *sentry.Hub) {
 				)
 
 				defer wg.Done() // release when done
+
+				// Throttle down the requests to avoid bans.
+				sleepRandom(3, 0.5)
 
 				contracts, r, err := s.esi.ESI.ContractsApi.GetContractsPublicRegionId(
 					context.Background(), regionID, &esi.GetContractsPublicRegionIdOpts{Page: optional.NewInt32(page)},
@@ -184,13 +188,24 @@ func (s *MarketWatch) contractWorker(regionID int32, localHub *sentry.Hub) {
 func (s *MarketWatch) getContractItems(contract *Contract) error {
 	wg := sync.WaitGroup{}
 
-	// Return Channels
 	rchan := make(chan []esi.GetContractsPublicItemsContractId200Ok, 100000)
 	echan := make(chan error, 100000)
+
+	// Throttle down the requests to avoid bans.
+	sleepRandom(5, 0.5)
 
 	items, res, err := s.esi.ESI.ContractsApi.GetContractsPublicItemsContractId(
 		context.Background(), contract.Contract.Contract.ContractId, nil,
 	)
+
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			sentry.CaptureException(err)
+			log.Println(err)
+		}
+	}(res.Body)
+
 	if err != nil {
 		return err
 	}
@@ -208,18 +223,26 @@ func (s *MarketWatch) getContractItems(contract *Contract) error {
 			)
 			defer wg.Done()
 
-			items, _, err := s.esi.ESI.ContractsApi.GetContractsPublicItemsContractId(
+			// Throttle down the requests to avoid bans.
+			sleepRandom(5, 0.5)
+
+			items, itemsRes, err := s.esi.ESI.ContractsApi.GetContractsPublicItemsContractId(
 				context.Background(),
 				contract.Contract.Contract.ContractId,
 				&esi.GetContractsPublicItemsContractIdOpts{Page: optional.NewInt32(page)},
 			)
+			defer func(Body io.ReadCloser) {
+				err := Body.Close()
+				if err != nil {
+					sentry.CaptureException(err)
+				}
+			}(itemsRes.Body)
+
 			if err != nil {
 				echan <- err
-				return
+			} else {
+				rchan <- items
 			}
-
-			// Add the contracts to the channel
-			rchan <- items
 		}(pages, sentry.CurrentHub().Clone())
 		pages--
 	}
@@ -250,6 +273,9 @@ func (s *MarketWatch) getContractBids(contract *Contract) error {
 	rchan := make(chan []esi.GetContractsPublicBidsContractId200Ok, 100000)
 	echan := make(chan error, 100000)
 
+	// Throttle down the requests to avoid bans.
+	sleepRandom(3, 0.5)
+
 	bids, res, err := s.esi.ESI.ContractsApi.GetContractsPublicBidsContractId(
 		context.Background(), contract.Contract.Contract.ContractId, nil,
 	)
@@ -271,12 +297,22 @@ func (s *MarketWatch) getContractBids(contract *Contract) error {
 			)
 
 			defer wg.Done()
+			// Throttle down the requests to avoid bans.
+			sleepRandom(5, 0.5)
 
-			bids, _, err := s.esi.ESI.ContractsApi.GetContractsPublicBidsContractId(
+			bids, bidsRes, err := s.esi.ESI.ContractsApi.GetContractsPublicBidsContractId(
 				context.Background(),
 				contract.Contract.Contract.ContractId,
 				&esi.GetContractsPublicBidsContractIdOpts{Page: optional.NewInt32(page)},
 			)
+			defer func(Body io.ReadCloser) {
+				err := Body.Close()
+				if err != nil {
+					sentry.CaptureException(err)
+					log.Println(err)
+				}
+			}(bidsRes.Body)
+
 			if err != nil {
 				echan <- err
 				return

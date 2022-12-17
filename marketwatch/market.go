@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"strconv"
 	"sync"
@@ -68,12 +69,24 @@ func (s *MarketWatch) marketWorker(regionID int32, localHub *sentry.Hub) {
 					},
 				)
 
+				// Throttle down request rate to avoid error limit.
+				sleepRandom(5, 0.5)
+
 				orders, r, err := s.esi.ESI.MarketApi.GetMarketsRegionIdOrders(
 					context.Background(),
 					"all",
 					regionID,
 					&esi.GetMarketsRegionIdOrdersOpts{Page: optional.NewInt32(page)},
 				)
+
+				defer func(Body io.ReadCloser) {
+					err := Body.Close()
+					if err != nil {
+						sentry.CaptureException(err)
+						log.Println(err)
+					}
+				}(r.Body)
+
 				if err != nil {
 					echan <- err
 					return
