@@ -14,7 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-const version = "eve-marketwatch@0.0.3"
+const version = "eve-marketwatch@0.0.4"
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)

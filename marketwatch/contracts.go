@@ -199,10 +199,10 @@ func (s *MarketWatch) getContractItems(contract *Contract) error {
 	)
 
 	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			sentry.CaptureException(err)
-			log.Println(err)
+		thisErr := Body.Close()
+		if thisErr != nil {
+			sentry.CaptureException(thisErr)
+			log.Println(thisErr)
 		}
 	}(res.Body)
 
@@ -232,9 +232,10 @@ func (s *MarketWatch) getContractItems(contract *Contract) error {
 				&esi.GetContractsPublicItemsContractIdOpts{Page: optional.NewInt32(page)},
 			)
 			defer func(Body io.ReadCloser) {
-				err := Body.Close()
-				if err != nil {
-					sentry.CaptureException(err)
+				thisErr := Body.Close()
+				if thisErr != nil {
+					sentry.CaptureException(thisErr)
+					log.Println(thisErr)
 				}
 			}(itemsRes.Body)
 
@@ -306,10 +307,10 @@ func (s *MarketWatch) getContractBids(contract *Contract) error {
 				&esi.GetContractsPublicBidsContractIdOpts{Page: optional.NewInt32(page)},
 			)
 			defer func(Body io.ReadCloser) {
-				err := Body.Close()
-				if err != nil {
-					sentry.CaptureException(err)
-					log.Println(err)
+				thisErr := Body.Close()
+				if thisErr != nil {
+					sentry.CaptureException(thisErr)
+					log.Println(thisErr)
 				}
 			}(bidsRes.Body)
 

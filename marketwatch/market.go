@@ -80,10 +80,10 @@ func (s *MarketWatch) marketWorker(regionID int32, localHub *sentry.Hub) {
 				)
 
 				defer func(Body io.ReadCloser) {
-					err := Body.Close()
-					if err != nil {
-						sentry.CaptureException(err)
-						log.Println(err)
+					thisErr := Body.Close()
+					if thisErr != nil {
+						sentry.CaptureException(thisErr)
+						log.Println(thisErr)
 					}
 				}(r.Body)
 
