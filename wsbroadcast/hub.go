@@ -109,7 +109,6 @@ var upgrader = websocket.Upgrader{
 func (h *Hub) ServeWs(w http.ResponseWriter, r *http.Request) error {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		sentry.CaptureException(err)
 		return err
 	}
 

@@ -192,8 +192,6 @@ func (s *MarketWatch) getContractItems(contract *Contract) error {
 		context.Background(), contract.Contract.Contract.ContractId, nil,
 	)
 	if err != nil {
-		sentry.CaptureException(err)
-		log.Println(err)
 		return err
 	}
 
@@ -233,8 +231,6 @@ func (s *MarketWatch) getContractItems(contract *Contract) error {
 	close(echan)
 
 	for err := range echan {
-		// Fail all if one fails
-		log.Println(err)
 		return err
 	}
 
@@ -297,9 +293,6 @@ func (s *MarketWatch) getContractBids(contract *Contract) error {
 	close(echan)
 
 	for err := range echan {
-		// Fail all if one fails
-		sentry.CaptureException(err)
-		log.Println(err)
 		return err
 	}
 

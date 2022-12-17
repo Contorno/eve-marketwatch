@@ -71,7 +71,6 @@ func (s *MarketWatch) Run() error {
 
 	err := s.startUpMarketWorkers()
 	if err != nil {
-		sentry.CaptureException(err)
 		return err
 	}
 

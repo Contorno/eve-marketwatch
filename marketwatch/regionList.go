@@ -22,7 +22,6 @@ func (s *MarketWatch) startUpMarketWorkers() error {
 		if err == nil {
 			break
 		} else if tries > 5 {
-			sentry.CaptureException(err)
 			return err
 		} else {
 			time.Sleep(time.Second * 5)
